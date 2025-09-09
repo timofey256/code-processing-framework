@@ -202,20 +202,32 @@ int main() {
         return response { 200, "text/plain", "Hello world from Code Processor!" };
     });
 
+    disp.add_route(POST, "/register", [](const request_parser::request&, const std::unordered_map<std::string, std::string>&) {
+        return response { 201, "text/plain", "Successfully registered!" };
+    });
+
+    disp.add_route(POST, "/login", [](const request_parser::request&, const std::unordered_map<std::string, std::string>&) {
+        return response { 200, "application/json", "{ \"token\": \"0\" }"  };
+    });
+
     disp.add_route(POST, "/task", [&](const request_parser::request& r, const std::unordered_map<std::string, std::string>&) {
         auto uuid = random_uuid();        
-        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
         task_results.emplace(uuid, 0);
+        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+        task_results.emplace(uuid, 1);
 
-        return response { 200, "text/plain", "{ uuid: \"" + uuid + "\" }"  };
+        return response { 201, "application/json", "{ \"task_id\": \"" + uuid + "\" }"  };
     });
 
     disp.add_route(GET, "/status/{task_id}", [&](const request_parser::request&, const std::unordered_map<std::string, std::string>& params) {
         auto it = params.find("task_id");
         if (it == params.end())
             return response {404, "text/plain", "Invalid request: couldn't read task_id" };
+        auto task_id = it->second;
+        if (!task_results.contains(task_id))
+            return response {404, "text/plain", "Not found: task wih id " + task_id + " does not exist" };
 
-        return response { 200, "text/plain", "{ status: \"ready\" }" };
+        return response { 200, "application/json", "{ \"status\": \"ready\" }" };
     });
 
     disp.add_route(GET, "/result/{task_id}", [&](const request_parser::request&, const std::unordered_map<std::string, std::string>& params) {
@@ -226,7 +238,7 @@ int main() {
         if (!task_results.contains(task_id))
             return response {404, "text/plain", "Not found: task wih id " + task_id + " does not exist" };
 
-        return response { 200, "text/plain", "{ result: \"" + std::to_string(task_results[task_id]) + "\" }" };
+        return response { 200, "application/json", "{ \"result\": \"" + std::to_string(task_results[task_id]) + "\" }" };
     });
 
     try {
@@ -249,6 +261,8 @@ int main() {
             std::cout << "Body: " << r.body << std::endl;
 
             response resp = disp.dispatch(r);
+
+            std::cout << "Response: " << resp.to_string() << std::endl;
 
             asio::write(socket, asio::buffer(resp.to_string()));
         }
