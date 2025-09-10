@@ -11,6 +11,8 @@ pkgs.mkShell {
     gnumake
     pkg-config
     nodejs_22
+    openssl
+    nlohmann_json
 
     docker
     python313

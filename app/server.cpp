@@ -4,37 +4,61 @@
 #include <regex>
 #include <chrono>
 #include <thread>
+#include <nlohmann/json.hpp>
 
 #include "core/types.hpp"
 #include "core/dispatcher.hpp"
 #include "core/request_parser.hpp"
 #include "infra/task_repository.hpp"
+#include "services/auth_service.hpp"
 
 using asio::ip::tcp;
 
 int main() {
     task_repository task_repo;
+    auth_service auth_s;
     request_parser rp;
-    dispatcher disp;
+    dispatcher disp(auth_s);
 
     disp.add_route(GET, "/", [](const request&, const std::unordered_map<std::string, std::string>&) {
         return response { 200, "text/plain", "Hello world from Code Processor!" };
-    });
+    }, true);
 
-    disp.add_route(POST, "/register", [](const request&, const std::unordered_map<std::string, std::string>&) {
-        return response { 201, "text/plain", "Successfully registered!" };
-    });
+    disp.add_route(POST, "/register", [&](const request& req, const std::unordered_map<std::string, std::string>&) {
+        try {
+            nlohmann::json payload = nlohmann::json::parse(req.body);
 
-    disp.add_route(POST, "/login", [](const request&, const std::unordered_map<std::string, std::string>&) {
-        return response { 200, "application/json", "{ \"token\": \"0\" }"  };
-    });
+            std::string username = payload.at("username").get<std::string>();
+            std::string password = payload.at("password").get<std::string>();
+
+            std::cout << "Registering user: " << username << "\n";
+            auth_s.register_user(username, password);
+
+            return response{201, "text/plain", "Successfully registered!"};
+        } catch (std::exception& e) {
+            return response{400, "application/json",
+            std::string("{\"error\":\"bad request: ") + e.what() + "\"}"};
+        }
+    }, true);
+
+
+    disp.add_route(POST, "/login", [&](const request& req, const std::unordered_map<std::string, std::string>&) {
+        nlohmann::json payload = nlohmann::json::parse(req.body);
+
+        std::string username = payload.at("username").get<std::string>();
+        std::string password = payload.at("password").get<std::string>();
+
+        auto token = auth_s.login_user(username, password);
+        std::cout << "Registering user: " << username << "\n";
+        return response { 200, "application/json", "{ \"token\": \"" + token + "\" }"  };
+    }, true);
 
     disp.add_route(POST, "/task", [&](const request& r, const std::unordered_map<std::string, std::string>&) {
-        std::string uuid = task_repo.add(task{CPP, IN_PROGRESS, ""});
+        std::string task_id = task_repo.add(task{CPP, IN_PROGRESS, ""});
         std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-        task_repo.change_status(uuid, READY);
+        task_repo.change_status(task_id, READY);
 
-        return response { 201, "application/json", "{ \"task_id\": \"" + uuid + "\" }"  };
+        return response { 201, "application/json", "{ \"task_id\": \"" + task_id + "\" }"  };
     });
 
     disp.add_route(GET, "/status/{task_id}", [&](const request&, const std::unordered_map<std::string, std::string>& params) {
@@ -75,6 +99,7 @@ int main() {
             request r = rp.parse(request_stream);
 
             std::cout << "Type: " << r.type << std::endl;
+            std::cout << "Auth: " << r.headers["Authorization"] << std::endl;
             std::cout << "Target: " << r.target << std::endl;
             std::cout << "Body: " << r.body << std::endl;
 
