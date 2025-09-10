@@ -6,9 +6,11 @@ pkgs.mkShell {
     clang
     clang-tools   
     ccls          
+    asio
     cmake
     gnumake
     pkg-config
+    nodejs_22
 
     docker
     python313
