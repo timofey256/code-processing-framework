@@ -36,3 +36,19 @@ struct response {
     }
 };
 
+enum language {
+    CPP,
+    PY
+};
+
+enum task_status {
+    IN_PROGRESS,
+    QUEUED,
+    READY
+};
+
+struct task {
+    language lang;
+    task_status status;
+    std::string code;
+};

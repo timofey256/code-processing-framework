@@ -14,8 +14,12 @@ add_library(core
     core/request_parser.cpp
 )
 
+add_library(infra
+    infra/task_repository.cpp
+)
+
 add_executable(server
     app/server.cpp
 )
 
-target_link_libraries(server PRIVATE core)
+target_link_libraries(server PRIVATE core infra)
