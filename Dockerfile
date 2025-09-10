@@ -1,6 +1,7 @@
 FROM debian:stable-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    libssl-dev \
     g++ cmake make pkg-config \
     libasio-dev nlohmann-json3-dev \
     && rm -rf /var/lib/apt/lists/*
