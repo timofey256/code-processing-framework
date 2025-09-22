@@ -4,17 +4,30 @@
 #include <regex>
 #include <chrono>
 #include <thread>
+#include <expected>
 #include <nlohmann/json.hpp>
+#include <cstdlib> 
+#include <charconv>
+#include <optional>
 
 #include "core/types.hpp"
-#include "core/dispatcher.hpp"
-#include "core/request_parser.hpp"
+
+#include "infra/types.hpp"
+#include "infra/dispatcher.hpp"
+#include "infra/request_parser.hpp"
+#include "infra/types.hpp"
 #include "infra/task_repository.hpp"
+
 #include "services/auth_service.hpp"
+
+#include "lib/env.hpp"
 
 using asio::ip::tcp;
 
+
 int main() {
+    int port = get_port("PORT").value_or(8081);
+
     task_repository task_repo;
     auth_service auth_s;
     request_parser rp;
@@ -85,9 +98,9 @@ int main() {
 
     try {
         asio::io_context io;
-        tcp::acceptor acceptor(io, tcp::endpoint(tcp::v4(), 8081));
+        tcp::acceptor acceptor(io, tcp::endpoint(tcp::v4(), port));
 
-        std::cout << "Server listening on http://localhost:8081\n";
+        std::cout << "Server listening on http://localhost:" << port << std::endl;
 
         for (;;) {
             tcp::socket socket(io);
@@ -96,14 +109,18 @@ int main() {
             asio::streambuf buffer;
             asio::read_until(socket, buffer, "\r\n\r\n");
             std::istream request_stream(&buffer);
-            request r = rp.parse(request_stream);
+            std::expected<request, std::string> r = rp.parse(request_stream);
+            if (!r) {
+                std::cerr << "Failed to parse the request: " << r.error() << "\n";
+                continue;
+            }
 
-            std::cout << "Type: " << r.type << std::endl;
-            std::cout << "Auth: " << r.headers["Authorization"] << std::endl;
-            std::cout << "Target: " << r.target << std::endl;
-            std::cout << "Body: " << r.body << std::endl;
+            std::cout << "Type: "   << r->type << std::endl;
+            std::cout << "Auth: "   << r->headers["Authorization"] << std::endl;
+            std::cout << "Target: " << r->target << std::endl;
+            std::cout << "Body: "   << r->body << std::endl;
 
-            response resp = disp.dispatch(r);
+            response resp = disp.dispatch(*r);
 
             std::cout << "Response: " << resp.to_string() << std::endl;
 

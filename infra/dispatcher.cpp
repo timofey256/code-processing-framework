@@ -1,4 +1,4 @@
-#include "core/dispatcher.hpp"
+#include "infra/dispatcher.hpp"
 
 static std::regex pattern_to_regex(const std::string& pattern) {
     std::string regex_str;

@@ -1,6 +1,6 @@
-#include "core/request_parser.hpp"
+#include "infra/request_parser.hpp"
 
-request request_parser::parse(std::istream& serialized) {
+std::expected<request, std::string> request_parser::parse(std::istream& serialized) {
     request r;
 
     // parse request line
@@ -20,7 +20,7 @@ request request_parser::parse(std::istream& serialized) {
     else if (method == "HEAD") r.type = HEAD;
     else if (method == "OPTIONS") r.type = OPTIONS;
     else if (method == "PATCH") r.type = PATCH;
-    else throw std::runtime_error("Unsupported HTTP method: " + method);
+    else return std::unexpected("Unsupported HTTP method: " + method);
 
     r.target = path;
 
