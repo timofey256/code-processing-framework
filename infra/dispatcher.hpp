@@ -6,6 +6,7 @@
 #include <regex>
 
 #include "core/types.hpp"
+#include "infra/types.hpp"
 #include "services/auth_service.hpp"
 
 using handler_t = std::function<response(const request&, const std::unordered_map<std::string, std::string>&)>;

@@ -11,18 +11,19 @@ find_package(nlohmann_json CONFIG REQUIRED)
 find_path(ASIO_INCLUDE_DIR asio.hpp)
 include_directories(${ASIO_INCLUDE_DIR})
 
-add_library(core
-    core/dispatcher.cpp
-    core/request_parser.cpp
+add_library(core INTERFACE
 )
 
 add_library(infra
     infra/task_repository.cpp
     infra/user_repository.cpp
+    infra/dispatcher.cpp
+    infra/request_parser.cpp
 )
 
 add_library(lib
     lib/random.cpp
+    lib/env.cpp
 )
 
 add_library(services
