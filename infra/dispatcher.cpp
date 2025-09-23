@@ -2,7 +2,6 @@
 
 static std::regex pattern_to_regex(const std::string& pattern) {
     std::string regex_str;
-    std::vector<std::string> keys;
     std::stringstream ss(pattern);
     std::string segment;
 
