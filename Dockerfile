@@ -2,7 +2,7 @@ FROM debian:stable-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ cmake make pkg-config \
-    libasio-dev libssl-dev nlohmann-json3-dev rabbitmq-c-dev curl \
+    libasio-dev libssl-dev nlohmann-json3-dev librabbitmq-dev curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

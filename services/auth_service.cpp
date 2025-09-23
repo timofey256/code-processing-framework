@@ -18,17 +18,17 @@ std::string sha256(const std::string& input) {
     return oss.str();
 }
 
-void auth_service::register_user(std::string& username, std::string& password) {
+void auth_service::register_user(const std::string& username, const std::string& password) {
     auto hashed_password = sha256(password);
     user_repo.add(user{username, hashed_password});
 }
 
-std::string auth_service::login_user(std::string& username, std::string& password) {
+std::expected<std::string, std::string> auth_service::login_user(const std::string& username, const std::string& password) {
     auto hashed_password = sha256(password);
 
     const user* u = user_repo.find(username);
     if (!u || u->password != hashed_password) {
-        throw std::invalid_argument("invalid username or password");
+        return std::unexpected("invalid username or password");
     }
 
     auto uuid = random_uuid();

@@ -62,8 +62,11 @@ int main() {
         std::string password = payload.at("password").get<std::string>();
 
         auto token = auth_s.login_user(username, password);
+        if (!token) {
+            return response { 401, "text/plain", "Unauthorized Error" };
+        }
         std::cout << "Registering user: " << username << "\n";
-        return response { 200, "application/json", "{ \"token\": \"" + token + "\" }"  };
+        return response { 200, "application/json", "{ \"token\": \"" + *token + "\" }"  };
     }, true);
 
     disp.add_route(POST, "/task", [&](const request& r, const std::unordered_map<std::string, std::string>&) {
