@@ -2,8 +2,9 @@
 
 #include <string>
 #include <sstream>
+#include <unordered_map>
 
-enum request_type {
+enum class request_type {
     GET,
     POST,
     PUT,
@@ -13,6 +14,8 @@ enum request_type {
     PATCH
 };
 
+std::ostream& operator<<(std::ostream& os, request_type t);
+
 struct request {
     request_type type;
     std::string target;
@@ -20,7 +23,7 @@ struct request {
     std::string body;
 };
 
-const std::unordered_map<int, std::string> status_text = {
+inline const std::unordered_map<int, std::string> status_text = {
     // 1xx — Informational
     {100, "Continue"},
     {101, "Switching Protocols"},

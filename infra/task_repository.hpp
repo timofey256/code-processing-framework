@@ -10,10 +10,10 @@
 class task_repository {
 public:
     std::string add(task t); 
-    std::expected<task, std::string> get(std::string& task_id); 
-    void change_status(std::string& id, task_status status); 
-    std::expected<std::string, std::string> remove(std::string& task_id); 
-    bool contains(std::string& task_id); 
+    std::expected<task, std::string> get(const std::string& task_id); 
+    void change_status(const std::string& id, task_status status); 
+    std::expected<std::string, std::string> remove(const std::string& task_id); 
+    bool contains(const std::string& task_id); 
     void clear();
 private:
     std::unordered_map<std::string, task> tasks;

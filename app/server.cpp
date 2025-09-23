@@ -33,11 +33,11 @@ int main() {
     request_parser rp;
     dispatcher disp(auth_s);
 
-    disp.add_route(GET, "/", [](const request&, const std::unordered_map<std::string, std::string>&) {
+    disp.add_route(request_type::GET, "/", [](const request&, const std::unordered_map<std::string, std::string>&) {
         return response { 200, "text/plain", "Hello world from Code Processor!" };
     }, true);
 
-    disp.add_route(POST, "/register", [&](const request& req, const std::unordered_map<std::string, std::string>&) {
+    disp.add_route(request_type::POST, "/register", [&](const request& req, const std::unordered_map<std::string, std::string>&) {
         try {
             nlohmann::json payload = nlohmann::json::parse(req.body);
 
@@ -55,7 +55,7 @@ int main() {
     }, true);
 
 
-    disp.add_route(POST, "/login", [&](const request& req, const std::unordered_map<std::string, std::string>&) {
+    disp.add_route(request_type::POST, "/login", [&](const request& req, const std::unordered_map<std::string, std::string>&) {
         nlohmann::json payload = nlohmann::json::parse(req.body);
 
         std::string username = payload.at("username").get<std::string>();
@@ -65,19 +65,19 @@ int main() {
         if (!token) {
             return response { 401, "text/plain", "Unauthorized Error" };
         }
-        std::cout << "Registering user: " << username << "\n";
+        std::cout << "Logging in user: " << username << "\n";
         return response { 200, "application/json", "{ \"token\": \"" + *token + "\" }"  };
     }, true);
 
-    disp.add_route(POST, "/task", [&](const request& r, const std::unordered_map<std::string, std::string>&) {
-        std::string task_id = task_repo.add(task{CPP, IN_PROGRESS, ""});
+    disp.add_route(request_type::POST, "/task", [&](const request& r, const std::unordered_map<std::string, std::string>&) {
+        std::string task_id = task_repo.add(task{language::CPP, task_status::IN_PROGRESS, ""});
         std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-        task_repo.change_status(task_id, READY);
+        task_repo.change_status(task_id, task_status::READY);
 
         return response { 201, "application/json", "{ \"task_id\": \"" + task_id + "\" }"  };
     });
 
-    disp.add_route(GET, "/status/{task_id}", [&](const request&, const std::unordered_map<std::string, std::string>& params) {
+    disp.add_route(request_type::GET, "/status/{task_id}", [&](const request&, const std::unordered_map<std::string, std::string>& params) {
         auto it = params.find("task_id");
         if (it == params.end())
             return response {404, "text/plain", "Invalid request: couldn't read task_id" };
@@ -88,7 +88,7 @@ int main() {
         return response { 200, "application/json", "{ \"status\": \"ready\" }" };
     });
 
-    disp.add_route(GET, "/result/{task_id}", [&](const request&, const std::unordered_map<std::string, std::string>& params) {
+    disp.add_route(request_type::GET, "/result/{task_id}", [&](const request&, const std::unordered_map<std::string, std::string>& params) {
         auto it = params.find("task_id");
         if (it == params.end())
             return response {400, "text/plain", "Bad request: couldn't read task_id" };
@@ -115,6 +115,8 @@ int main() {
             std::expected<request, std::string> r = rp.parse(request_stream);
             if (!r) {
                 std::cerr << "Failed to parse the request: " << r.error() << "\n";
+                response e = response {400, "text/plain", "Invalid request" };
+                asio::write(socket, asio::buffer(e.to_string()));
                 continue;
             }
 

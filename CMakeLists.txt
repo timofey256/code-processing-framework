@@ -15,10 +15,11 @@ add_library(core INTERFACE
 )
 
 add_library(infra
-    infra/task_repository.cpp
-    infra/user_repository.cpp
+    infra/types.cpp
     infra/dispatcher.cpp
     infra/request_parser.cpp
+    infra/task_repository.cpp
+    infra/user_repository.cpp
 )
 
 add_library(lib
