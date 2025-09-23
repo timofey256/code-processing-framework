@@ -8,8 +8,9 @@ include_directories(${CMAKE_SOURCE_DIR})
 
 find_package(OpenSSL REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+find_library(RABBITMQ_LIB NAMES rabbitmq)
+
 find_path(ASIO_INCLUDE_DIR asio.hpp)
-include_directories(${ASIO_INCLUDE_DIR})
 
 add_library(core INTERFACE
 )
@@ -27,6 +28,10 @@ add_library(lib
     lib/env.cpp
 )
 
+add_library(helpers
+    helpers/rabbitmq.cpp
+)
+
 add_library(services
     services/auth_service.cpp
 )
@@ -37,3 +42,13 @@ add_executable(server
 )
 
 target_link_libraries(server PRIVATE core infra services lib OpenSSL::Crypto nlohmann_json::nlohmann_json)
+
+add_executable(processor
+    app/processor.cpp
+)
+
+target_link_libraries(processor
+    PRIVATE core infra services helpers lib
+            nlohmann_json::nlohmann_json
+            ${RABBITMQ_LIB}
+)
