@@ -2,12 +2,12 @@
 
 #include <string>
 
-enum language {
+enum class language {
     CPP,
     PY
 };
 
-enum task_status {
+enum class task_status {
     IN_PROGRESS,
     QUEUED,
     READY
