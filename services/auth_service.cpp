@@ -18,12 +18,12 @@ std::string sha256(const std::string& input) {
     return oss.str();
 }
 
-void auth_service::register_user(std::string username, std::string password) {
+void auth_service::register_user(std::string& username, std::string& password) {
     auto hashed_password = sha256(password);
     user_repo.add(user{username, hashed_password});
 }
 
-std::string auth_service::login_user(std::string username, std::string password) {
+std::string auth_service::login_user(std::string& username, std::string& password) {
     auto hashed_password = sha256(password);
 
     const user* u = user_repo.find(username);
