@@ -14,12 +14,12 @@
 
 class auth_service {
 public:
-    void register_user(std::string username, std::string password);
-    std::string login_user(std::string username, std::string password);
+    void register_user(std::string& username, std::string& password);
+    std::string login_user(std::string& username, std::string& password);
     bool auth(const std::string& token);
 
 private:
-    std::unordered_set<std::string> tokens;
+    std::unordered_set<std::string&> tokens;
     std::hash<std::string> hasher;
     user_repository user_repo;
 };
