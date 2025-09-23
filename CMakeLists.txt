@@ -41,7 +41,11 @@ add_executable(server
     app/server.cpp
 )
 
-target_link_libraries(server PRIVATE core infra services lib OpenSSL::Crypto nlohmann_json::nlohmann_json)
+target_link_libraries(server PRIVATE
+    core infra services lib helpers
+    OpenSSL::Crypto nlohmann_json::nlohmann_json
+    ${RABBITMQ_LIB}
+)
 
 add_executable(processor
     app/processor.cpp

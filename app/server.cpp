@@ -10,6 +10,9 @@
 #include <charconv>
 #include <optional>
 
+#include <rabbitmq-c/amqp.h>
+#include <rabbitmq-c/tcp_socket.h>
+
 #include "core/types.hpp"
 
 #include "infra/types.hpp"
@@ -21,12 +24,45 @@
 #include "services/auth_service.hpp"
 
 #include "lib/env.hpp"
+#include "helpers/rabbitmq.hpp"
 
 using asio::ip::tcp;
 
-
 int main() {
     int port = get_port("PORT").value_or(8081);
+
+    // RabbitMQ connection
+    amqp_connection_state_t conn = amqp_new_connection();
+    amqp_socket_t* socket = amqp_tcp_socket_new(conn);
+
+    std::string rabbit_vhost = get_env("RABBITMQ_VHOST").value_or("/");
+    std::string rabbit_host  = get_env("RABBITMQ_HOST").value_or("localhost");
+
+    int rabbit_port = get_port("RABBITMQ_PORT").value_or(5672);
+
+    if (!socket) {
+        throw std::runtime_error("Failed to create RabbitMQ TCP socket");
+    }
+    if (amqp_socket_open(socket, rabbit_host.c_str(), rabbit_port)) {
+        throw std::runtime_error("Failed to open RabbitMQ TCP socket");
+    }
+
+    // login (using env user/pass or default)
+    std::string rabbit_user = get_env("RABBITMQ_USER").value_or("guest");
+    std::string rabbit_pass = get_env("RABBITMQ_PASS").value_or("guest");
+
+    die_on_amqp_error(amqp_login(conn, rabbit_vhost.c_str(), 0, 131072, 0, AMQP_SASL_METHOD_PLAIN,
+                                 rabbit_user.c_str(), rabbit_pass.c_str()),
+                      "Logging in");
+    
+    amqp_channel_open(conn, 1);
+    amqp_get_rpc_reply(conn);
+
+    // declare a queue "tasks"
+    amqp_queue_declare(conn, 1, amqp_cstring_bytes("tasks"),
+                       0, 0, 0, 1, amqp_empty_table);
+    amqp_get_rpc_reply(conn);
+
 
     task_repository task_repo;
     auth_service auth_s;
@@ -54,7 +90,6 @@ int main() {
         }
     }, true);
 
-
     disp.add_route(request_type::POST, "/login", [&](const request& req, const std::unordered_map<std::string, std::string>&) {
         nlohmann::json payload = nlohmann::json::parse(req.body);
 
@@ -69,10 +104,28 @@ int main() {
         return response { 200, "application/json", "{ \"token\": \"" + *token + "\" }"  };
     }, true);
 
-    disp.add_route(request_type::POST, "/task", [&](const request& r, const std::unordered_map<std::string, std::string>&) {
-        std::string task_id = task_repo.add(task{language::CPP, task_status::IN_PROGRESS, ""});
-        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-        task_repo.change_status(task_id, task_status::READY);
+    disp.add_route(request_type::POST, "/task", [&](const request& req, const std::unordered_map<std::string, std::string>&) {
+        nlohmann::json payload = nlohmann::json::parse(req.body);
+
+        std::string language = payload.at("language").get<std::string>();
+        std::string code = payload.at("code").get<std::string>();
+
+        std::string task_id = task_repo.add(task{language::CPP, task_status::IN_PROGRESS, code});
+
+        nlohmann::json msg_json = {
+            {"task_id", task_id},
+            {"language", language},
+            {"code", code}
+        };
+        std::string msg = msg_json.dump();
+
+        amqp_basic_publish(conn,
+            1,                                   // channel
+            amqp_cstring_bytes(""),              // exchange (default)
+            amqp_cstring_bytes("tasks"),         // routing key = queue
+            0, 0,                                // mandatory, immediate
+            NULL,                                // properties
+            amqp_cstring_bytes(msg.c_str()));
 
         return response { 201, "application/json", "{ \"task_id\": \"" + task_id + "\" }"  };
     });
@@ -134,4 +187,8 @@ int main() {
     } catch (std::exception& e) {
         std::cerr << "Exception: " << e.what() << "\n";
     }
+
+    amqp_channel_close(conn, 1, AMQP_REPLY_SUCCESS);
+    amqp_connection_close(conn, AMQP_REPLY_SUCCESS);
+    amqp_destroy_connection(conn);
 }
