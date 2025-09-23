@@ -44,7 +44,7 @@ std::expected<request, std::string> request_parser::parse(std::istream& serializ
     // parse body
     auto it = r.headers.find("Content-Length");
     if (it != r.headers.end()) {
-        int length = 0; std::stoi(it->second);
+        int length = 0;
         auto [ptr, ec] = std::from_chars(it->second.data(), it->second.data() + it->second.size(), length);
 
         if (ec != std::errc() || length < 0) {

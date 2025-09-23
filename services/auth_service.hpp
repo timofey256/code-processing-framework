@@ -20,6 +20,5 @@ public:
 
 private:
     std::unordered_set<std::string> tokens;
-    std::hash<std::string> hasher;
     user_repository user_repo;
 };
