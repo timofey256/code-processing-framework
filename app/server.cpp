@@ -110,7 +110,13 @@ int main() {
         std::string language = payload.at("language").get<std::string>();
         std::string code = payload.at("code").get<std::string>();
 
-        std::string task_id = task_repo.add(task{language::CPP, task_status::IN_PROGRESS, code});
+        std::string task_id =
+            task_repo.add_submission(task_submission{
+                language::CPP,
+                task_status::IN_PROGRESS,
+                code,
+                std::chrono::system_clock::now()
+            });
 
         nlohmann::json msg_json = {
             {"task_id", task_id},
@@ -129,15 +135,36 @@ int main() {
 
         return response { 201, "application/json", "{ \"task_id\": \"" + task_id + "\" }"  };
     });
+    
+    disp.add_route(request_type::POST, "/commit", [&](const request& req, const std::unordered_map<std::string, std::string>&) {
+        nlohmann::json payload = nlohmann::json::parse(req.body);
+
+        std::string task_id        = payload.at("task_id").get<std::string>();
+        std::string stdin_result   = payload.at("stdint").get<std::string>();
+        std::string stderr_result  = payload.at("stderr").get<std::string>();
+
+        task_repo.change_submission_status(task_id, task_status::READY);
+
+        nlohmann::json msg_json = {
+            {"task_id", task_id},
+            {"stdint", stdin_result},
+            {"stderr", stderr_result}
+        };
+        std::string msg = msg_json.dump();
+
+        return response { 201, "text/plain", "Successfully saved the result"};
+    });
 
     disp.add_route(request_type::GET, "/status/{task_id}", [&](const request&, const std::unordered_map<std::string, std::string>& params) {
         auto it = params.find("task_id");
         if (it == params.end())
             return response {404, "text/plain", "Invalid request: couldn't read task_id" };
         auto task_id = it->second;
-        if (!task_repo.contains(task_id))
+        if (!task_repo.contains_submission(task_id))
             return response {404, "text/plain", "Not found: task wih id " + task_id + " does not exist" };
 
+        // TODO
+        
         return response { 200, "application/json", "{ \"status\": \"ready\" }" };
     });
 
@@ -146,8 +173,10 @@ int main() {
         if (it == params.end())
             return response {400, "text/plain", "Bad request: couldn't read task_id" };
         auto task_id = it->second;
-        if (!task_repo.contains(task_id))
+        if (!task_repo.contains_result(task_id))
             return response {404, "text/plain", "Not found: task wih id " + task_id + " does not exist" };
+
+       // TODO
 
         return response { 200, "application/json", "{ \"result\" : \"\" }" };
     });
