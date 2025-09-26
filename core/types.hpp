@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <chrono>
 
 enum class language {
     CPP,
@@ -13,10 +14,21 @@ enum class task_status {
     READY
 };
 
-struct task {
+struct task_submission {
     language lang;
     task_status status;
     std::string code;
+    std::chrono::system_clock::time_point created_at;
+};
+
+struct task_result {
+    std::string submission_id;
+
+    std::string stdout_result;
+    std::string stderr_result;
+    std::string exit_code;
+
+    std::chrono::system_clock::time_point completed_at;
 };
 
 struct user {
