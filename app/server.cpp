@@ -137,35 +137,56 @@ int main() {
     });
     
     disp.add_route(request_type::POST, "/commit", [&](const request& req, const std::unordered_map<std::string, std::string>&) {
-        nlohmann::json payload = nlohmann::json::parse(req.body);
+        try {
+            nlohmann::json payload = nlohmann::json::parse(req.body);
 
-        std::string task_id        = payload.at("task_id").get<std::string>();
-        std::string stdin_result   = payload.at("stdint").get<std::string>();
-        std::string stderr_result  = payload.at("stderr").get<std::string>();
+            std::string task_id   = payload.at("task_id").get<std::string>();
+            std::string stdout_r  = payload.at("stdout").get<std::string>();
+            std::string stderr_r  = payload.at("stderr").get<std::string>();
+            int exit_code         = payload.at("exit_code").get<int>();
 
-        task_repo.change_submission_status(task_id, task_status::READY);
+            task_result result {
+                task_id,
+                stdout_r,
+                stderr_r,
+                std::to_string(exit_code),
+                std::chrono::system_clock::now()
+            };
 
-        nlohmann::json msg_json = {
-            {"task_id", task_id},
-            {"stdint", stdin_result},
-            {"stderr", stderr_result}
-        };
-        std::string msg = msg_json.dump();
+            task_repo.save_result(result);
+            task_repo.change_submission_status(task_id, task_status::READY);
 
-        return response { 201, "text/plain", "Successfully saved the result"};
-    });
+            return response{201, "application/json", R"({"status":"committed"})"};
+        } catch (std::exception& e) {
+            return response{400, "application/json",
+                std::string("{\"error\":\"bad request: ") + e.what() + "\"}"};
+        }
+    }, true);
+
 
     disp.add_route(request_type::GET, "/status/{task_id}", [&](const request&, const std::unordered_map<std::string, std::string>& params) {
         auto it = params.find("task_id");
         if (it == params.end())
             return response {404, "text/plain", "Invalid request: couldn't read task_id" };
         auto task_id = it->second;
-        if (!task_repo.contains_submission(task_id))
-            return response {404, "text/plain", "Not found: task wih id " + task_id + " does not exist" };
 
-        // TODO
-        
-        return response { 200, "application/json", "{ \"status\": \"ready\" }" };
+        auto sub = task_repo.get_submission(task_id);
+        if (!sub) {
+            return response {404, "text/plain", "Not found: task with id " + task_id + " does not exist" };
+        }
+
+        std::string status_str;
+        switch (sub->status) {
+            case task_status::IN_PROGRESS: status_str = "in_progress"; break;
+            case task_status::QUEUED:      status_str = "queued"; break;
+            case task_status::READY:       status_str = "ready"; break;
+        }
+
+        nlohmann::json body = {
+            {"task_id", task_id},
+            {"status", status_str}
+        };
+        return response {200, "application/json", body.dump()};
     });
 
     disp.add_route(request_type::GET, "/result/{task_id}", [&](const request&, const std::unordered_map<std::string, std::string>& params) {
@@ -173,12 +194,19 @@ int main() {
         if (it == params.end())
             return response {400, "text/plain", "Bad request: couldn't read task_id" };
         auto task_id = it->second;
-        if (!task_repo.contains_result(task_id))
-            return response {404, "text/plain", "Not found: task wih id " + task_id + " does not exist" };
 
-       // TODO
+        auto result = task_repo.get_result(task_id);
+        if (!result) {
+            return response {404, "text/plain", "Not found: result for task id " + task_id + " does not exist" };
+        }
 
-        return response { 200, "application/json", "{ \"result\" : \"\" }" };
+        nlohmann::json body = {
+            {"task_id", result->submission_id},
+            {"stdout", result->stdout_result},
+            {"stderr", result->stderr_result},
+            {"exit_code", result->exit_code}
+        };
+        return response {200, "application/json", body.dump()};
     });
 
     try {
