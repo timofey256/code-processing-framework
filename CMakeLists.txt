@@ -8,12 +8,12 @@ include_directories(${CMAKE_SOURCE_DIR})
 
 find_package(OpenSSL REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
+find_package(Boost REQUIRED)  
 find_library(RABBITMQ_LIB NAMES rabbitmq)
 
 find_path(ASIO_INCLUDE_DIR asio.hpp)
 
-add_library(core INTERFACE
-)
+add_library(core INTERFACE)
 
 add_library(infra
     infra/types.cpp
@@ -51,8 +51,11 @@ add_executable(processor
     app/processor.cpp
 )
 
+target_include_directories(processor PRIVATE ${Boost_INCLUDE_DIRS})
+
 target_link_libraries(processor
     PRIVATE core infra services helpers lib
             nlohmann_json::nlohmann_json
             ${RABBITMQ_LIB}
 )
+

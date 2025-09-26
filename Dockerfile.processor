@@ -2,7 +2,8 @@ FROM debian:stable-slim AS build
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ cmake make pkg-config git \
-    libasio-dev libssl-dev nlohmann-json3-dev librabbitmq-dev curl \
+    libasio-dev libssl-dev nlohmann-json3-dev librabbitmq-dev curl libboost-all-dev \
+    docker-cli \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -15,10 +16,12 @@ RUN rm -rf build && mkdir build && cd build && \
 FROM debian:stable-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libssl3 librabbitmq4 curl \
+    libssl3 librabbitmq4 curl docker-cli \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY --from=build /app/build/processor /usr/local/bin/processor
+
+VOLUME ["/var/run/docker.sock"]
 
 CMD ["processor"]

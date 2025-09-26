@@ -40,6 +40,9 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp:/tmp
     environment:
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
@@ -47,3 +50,9 @@ services:
       - RABBITMQ_PASS=mypass
       - RABBITMQ_VHOST=myvhost
 
+  runner:
+    build: 
+      context: ./runner
+      dockerfile: Dockerfile.runner
+    container_name: runner
+    image: runner:latest
