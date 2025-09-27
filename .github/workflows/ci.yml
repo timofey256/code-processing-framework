@@ -23,10 +23,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build runner
-        run: |
-          docker build -t runner:latest -f ./runner/Dockerfile.runner .
-
       - name: Build server
         run: |
           docker build -t code-server -f Dockerfile.server .
@@ -34,6 +30,10 @@ jobs:
       - name: Build processor
         run: |
           docker build -t code-processor -f Dockerfile.processor .
+
+      - name: Build runner
+        run: |
+          docker build -t runner:latest -f ./runner/Dockerfile.runner .
 
       - name: Start server and processor
         run: |
