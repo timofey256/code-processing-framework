@@ -8,56 +8,45 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    services:
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd "rabbitmqctl status"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build server image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile.server
-          tags: code-server:latest
-          load: true
-
-      - name: Build processor image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile.processor
-          tags: code-processor:latest
-          load: true
-
-      - name: Build runner image
-        uses: docker/build-push-action@v6
-        with:
-          context: ./runner
-          file: ./runner/Dockerfile.runner
-          tags: runner:latest
-          load: true
-
-      - name: Create network
-        run: docker network create code-net
-
-      - name: Start RabbitMQ
+      - name: Build runner
         run: |
+          docker build -t runner:latest -f ./runner/Dockerfile.runner .
+
+      - name: Build server
+        run: |
+          docker build -t code-server -f Dockerfile.server .
+
+      - name: Build processor
+        run: |
+          docker build -t code-processor -f Dockerfile.processor .
+
+      - name: Start server and processor
+        run: |
+          docker network create code-net
           docker run -d --name rabbitmq --network code-net \
             -e RABBITMQ_DEFAULT_USER=myuser \
             -e RABBITMQ_DEFAULT_PASS=mypass \
             -e RABBITMQ_DEFAULT_VHOST=myvhost \
-            --health-cmd "rabbitmqctl status" \
-            --health-interval 5s --health-timeout 5s --health-retries 12 \
             rabbitmq:3-management
-          # wait for healthy
-          until [ "$(docker inspect -f '{{.State.Health.Status}}' rabbitmq)" = "healthy" ]; do
-            sleep 2
-          done
 
-      - name: Start server
-        run: |
+          # Wait for RabbitMQ
+          sleep 15
+
           docker run -d --name server --network code-net \
             -e RABBITMQ_HOST=rabbitmq \
             -e RABBITMQ_USER=myuser \
@@ -65,25 +54,15 @@ jobs:
             -e RABBITMQ_VHOST=myvhost \
             -e PORT=8081 \
             -p 8081:8081 \
-            code-server:latest
+            code-server
 
-      - name: Start processor
-        run: |
           docker run -d --name processor --network code-net \
             -e RABBITMQ_HOST=rabbitmq \
             -e RABBITMQ_USER=myuser \
             -e RABBITMQ_PASS=mypass \
             -e RABBITMQ_VHOST=myvhost \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            code-processor:latest
-
-      - name: Wait for server
-        run: |
-          for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:8081/ >/dev/null; then exit 0; fi
-            sleep 1
-          done
-          echo "server didn't start"; exit 1
+            code-processor
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -91,7 +70,9 @@ jobs:
           python-version: '3.11'
 
       - name: Install test dependencies
-        run: pip install pytest requests
+        run: |
+          pip install pytest requests
 
       - name: Run tests
-        run: pytest -vv tests
+        run: |
+          pytest -v tests
