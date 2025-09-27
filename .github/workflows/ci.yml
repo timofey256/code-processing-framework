@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    services:
+      rabbitmq:
+        image: rabbitmq:3-management
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd "rabbitmqctl status"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build server
+        run: |
+          docker build -t code-server -f Dockerfile.server .
+
+      - name: Build processor
+        run: |
+          docker build -t code-processor -f Dockerfile.processor .
+
+      - name: Build runner
+        run: |
+          docker build -t runner:latest runner
+
+      - name: Start server and processor
+        run: |
+          docker network create code-net
+          docker run -d --name rabbitmq --network code-net \
+            -e RABBITMQ_DEFAULT_USER=myuser \
+            -e RABBITMQ_DEFAULT_PASS=mypass \
+            -e RABBITMQ_DEFAULT_VHOST=myvhost \
+            rabbitmq:3-management
+
+          # Wait for RabbitMQ
+          sleep 15
+
+          docker run -d --name server --network code-net \
+            -e RABBITMQ_HOST=rabbitmq \
+            -e RABBITMQ_USER=myuser \
+            -e RABBITMQ_PASS=mypass \
+            -e RABBITMQ_VHOST=myvhost \
+            -e PORT=8081 \
+            -p 8081:8081 \
+            code-server
+
+          docker run -d --name processor --network code-net \
+            -e RABBITMQ_HOST=rabbitmq \
+            -e RABBITMQ_USER=myuser \
+            -e RABBITMQ_PASS=mypass \
+            -e RABBITMQ_VHOST=myvhost \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            code-processor
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        run: |
+          pip install pytest requests
+
+      - name: Run tests
+        run: |
+          pytest -v tests
