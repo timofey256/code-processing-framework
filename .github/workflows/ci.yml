@@ -33,8 +33,7 @@ jobs:
 
       - name: Build runner
         run: |
-          docker build -t runner:latest -f runner/Dockerfile.runner .
-
+          docker build -t runner:latest -f ./runner/Dockerfile.runner .
 
       - name: Start server and processor
         run: |
