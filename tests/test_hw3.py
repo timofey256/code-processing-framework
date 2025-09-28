@@ -4,7 +4,7 @@ import requests
 import uuid
 import time
 
-BASE_URL = "http://127.0.0.1:8081"
+BASE_URL = "http://127.0.0.1:8000"
 
 @pytest.fixture(scope='module')
 def user_data():
@@ -41,7 +41,7 @@ def test_login_user(user_data):
     assert 'token' in data
 
 def get_code_processor_payload():
-    return {"tranlator": "python3", "code": "print('Hello, stdout world!')"}
+    return {"translator": "python3", "code": "print('Hello, stdout world!')"}
 
 def get_image_processor_payload():
     with open("static/sigma.png", "rb") as image_file:
@@ -53,8 +53,13 @@ def get_image_processor_payload():
 def test_create_task(auth_token):
     task_url = f"{BASE_URL}/task"
     headers = {'Authorization': f'Bearer {auth_token}'}
-    
+
+    payload = dict()
     payload = get_code_processor_payload()
+
+    if len(payload) == 0:
+        raise NotImplemented("Choose one of the variants for payload!")
+
     response = requests.post(task_url, headers=headers, json=payload) 
 
     assert response.status_code == 201
