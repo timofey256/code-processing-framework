@@ -18,7 +18,6 @@ pkgs.mkShell {
     docker
     python313
     python313Packages.pytest
-    python313Packages.pytest
     python313Packages.requests
   ];
 
