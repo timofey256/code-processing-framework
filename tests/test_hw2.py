@@ -79,7 +79,7 @@ def test_task_status_and_result(auth_token):
         if data['status'] == 'ready':
             break
          
-        assert data['status'] == 'in_progress', f'undefined status: {data['status']}!'
+        assert data['status'] == 'in_progress', f"undefined status: {data['status']}!"
         retry -= 1
         time.sleep(3)
     assert retry > 0, "task is still in progress!"
