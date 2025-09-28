@@ -41,7 +41,7 @@ def test_login_user(user_data):
     assert 'token' in data
 
 def get_code_processor_payload():
-    return {"tranlator": "python3", "code": "print('Hello, stdout world!')"}
+    return {"language": "python3", "code": "print('Hello, stdout world!')"}
 
 def get_image_processor_payload():
     with open("static/sigma.png", "rb") as image_file:
@@ -87,7 +87,8 @@ def test_task_status_and_result(auth_token):
     response = requests.get(result_url, headers=headers)
     assert response.status_code == 200
     data = response.json()
-    assert 'result' in data
+    assert 'stdout' in data
+    assert 'stderr' in data
 
 def test_task_not_found(auth_token):
     invalid_task_id = str(uuid.uuid4())
