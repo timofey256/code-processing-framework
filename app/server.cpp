@@ -107,13 +107,13 @@ int main() {
     disp.add_route(request_type::POST, "/task", [&](const request& req, const std::unordered_map<std::string, std::string>&) {
         nlohmann::json payload = nlohmann::json::parse(req.body);
 
-        std::string language = payload.at("language").get<std::string>();
+        std::string lang = payload.at("language").get<std::string>();
         std::string code = payload.at("code").get<std::string>();
 
         language lang_enum;
-        if (language == "cpp")
+        if (lang == "cpp")
             lang_enum = language::CPP;
-        else if (language == "python3" || language == "python")
+        else if (lang == "python3" || lang == "python")
             lang_enum = language::PY;
         else
             return response{400, "application/json", "{\"error\":\"Unsupported language\"}"};
@@ -128,7 +128,7 @@ int main() {
 
         nlohmann::json msg_json = {
             {"task_id", task_id},
-            {"language", language},
+            {"language", lang},
             {"code", code}
         };
         std::string msg = msg_json.dump();
