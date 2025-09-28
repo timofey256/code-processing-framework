@@ -109,7 +109,17 @@ int main() {
     }, true);
 
     disp.add_route(request_type::POST, "/task", [&](const request& req, const std::unordered_map<std::string, std::string>&) {
-        nlohmann::json payload = nlohmann::json::parse(req.body);
+        if (req.body.empty()) {
+            return response{400, "application/json", R"({"error":"empty body"})"};
+        }
+
+        nlohmann::json payload;
+        try {
+            payload = nlohmann::json::parse(req.body);
+        } catch (const std::exception& e) {
+            return response{400, "application/json",
+                                std::string(R"({"error":"invalid json: )") + e.what() + "\"}"};
+        }
 
         std::string lang = payload.at("language").get<std::string>();
         std::string code = payload.at("code").get<std::string>();
