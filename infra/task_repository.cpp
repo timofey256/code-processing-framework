@@ -14,9 +14,8 @@ bool task_repository::contains_submission(std::string task_id) {
 }
 
 std::string task_repository::save_result(task_result t) {
-    auto uuid = random_uuid();        
-    task_results.insert({uuid, t});
-    return uuid;
+    task_results[t.submission_id] = t;
+    return t.submission_id;
 }
 
 bool task_repository::contains_result(std::string task_id) {

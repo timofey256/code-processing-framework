@@ -51,7 +51,7 @@ RunResult runTask(const std::string &lang, const std::string &code, const std::s
               "bash -c \"g++ /workspace/task_" + task_id + ".cpp "
               "-o /workspace/task_" + task_id + ".out && "
               "/workspace/task_" + task_id + ".out\"";
-    } else if (lang == "python") {
+    } else if (lang == "python3") {
         codeFile += ".py";
         std::ofstream ofs(codeFile); ofs << code; ofs.close();
         cmd = "docker run --rm -v /tmp:/workspace runner:latest "
