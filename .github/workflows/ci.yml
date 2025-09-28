@@ -45,8 +45,11 @@ jobs:
         run: |
           pytest -v tests
 
+      - name: Debug logs
+        if: failure()
+        run: docker compose -f docker-compose.yml logs
+
       - name: Tear down
         if: always()
         run: |
           docker compose -f docker-compose.yml down -v
-
