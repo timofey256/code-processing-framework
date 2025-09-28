@@ -31,6 +31,8 @@ services:
       - RABBITMQ_USER=myuser
       - RABBITMQ_PASS=mypass
       - RABBITMQ_VHOST=myvhost
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
 
   processor:
     build:
@@ -56,3 +58,9 @@ services:
       dockerfile: Dockerfile.runner
     container_name: runner
     image: runner:latest
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"

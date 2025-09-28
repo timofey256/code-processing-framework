@@ -63,9 +63,12 @@ int main() {
                        0, 0, 0, 1, amqp_empty_table);
     amqp_get_rpc_reply(conn);
 
-
     task_repository task_repo;
-    auth_service auth_s;
+    std::string redis_host = get_env("REDIS_HOST").value_or("redis");
+    int redis_port = get_port("REDIS_PORT").value_or(6379);
+
+    auth_service auth_s(redis_host, redis_port);
+
     request_parser rp;
     dispatcher disp(auth_s);
 
