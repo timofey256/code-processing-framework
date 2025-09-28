@@ -23,6 +23,10 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+      postgres:
+        condition: service_started
+      redis:
+        condition: service_started
     ports:
       - "8081:8081"
     environment:
