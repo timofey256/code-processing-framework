@@ -164,7 +164,6 @@ int main() {
             report["stderr"] = result.stderr_str;
             report["exit_code"] = result.exit_code;
 
-            // TODO: send HTTP POST to /commit
             post_commit(report);
 
             std::cout << "Committed result for task " << task_id
