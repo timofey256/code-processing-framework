@@ -18,7 +18,9 @@ std::string sha256(const std::string& input) {
     return oss.str();
 }
 
-auth_service::auth_service(const std::string& host, int port) {
+auth_service::auth_service(pqxx::connection& pg_conn, const std::string& host, int port)
+    : user_repo(pg_conn)
+{
     ctx = redisConnect(host.c_str(), port);
     if (ctx == nullptr || ctx->err) {
         throw std::runtime_error("Failed to connect to Redis");
@@ -38,8 +40,8 @@ void auth_service::register_user(const std::string& username, const std::string&
 std::expected<std::string, std::string> auth_service::login_user(const std::string& username, const std::string& password) {
     auto hashed_password = sha256(password);
 
-    const user* u = user_repo.find(username);
-    if (!u || u->password != hashed_password) {
+    auto u = user_repo.find(username);
+    if (!u.has_value() || u->password != hashed_password) {
         return std::unexpected("invalid username or password");
     }
 

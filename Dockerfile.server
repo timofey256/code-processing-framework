@@ -4,7 +4,7 @@ FROM debian:stable-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ cmake make pkg-config git \
     libasio-dev libssl-dev nlohmann-json3-dev librabbitmq-dev curl libboost-all-dev \
-    libhiredis-dev \
+    libhiredis-dev libpq-dev libpqxx-dev \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -19,7 +19,7 @@ RUN rm -rf build && mkdir build && cd build && \
 FROM debian:stable-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libssl3 librabbitmq4 curl libhiredis-dev \
+    libssl3 librabbitmq4 curl libhiredis-dev libpq5 libpqxx-dev \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

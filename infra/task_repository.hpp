@@ -4,11 +4,14 @@
 #include <sstream>
 #include <iomanip>
 #include <expected>
+#include <pqxx/pqxx>
 
 #include "core/types.hpp"
 
 class task_repository {
 public:
+    task_repository(pqxx::connection& c) : conn(c) {}
+
     std::string add_submission(task_submission t); 
     std::string save_result(task_result t); 
 
@@ -19,8 +22,6 @@ public:
     std::expected<task_result, std::string>     get_result(const std::string& task_id); 
 
     void change_submission_status(const std::string& id, task_status status); 
-    void clear();
 private:
-    std::unordered_map<std::string, task_submission> task_submissions;
-    std::unordered_map<std::string, task_result> task_results;
+    pqxx::connection& conn;
 };
