@@ -47,7 +47,7 @@ def test_task_status_and_result():
         if data['status'] == 'ready':
             break
          
-        assert data['status'] == 'in_progress', f'undefined status: {data['status']}!'
+        assert data['status'] == 'in_progress', f"undefined status: {data['status']}!"
         time.sleep(1)
 
     response = requests.get(result_url)
