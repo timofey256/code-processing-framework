@@ -18,7 +18,19 @@ std::string sha256(const std::string& input) {
     return oss.str();
 }
 
+auth_service::auth_service(const std::string& host, int port) {
+    ctx = redisConnect(host.c_str(), port);
+    if (ctx == nullptr || ctx->err) {
+        throw std::runtime_error("Failed to connect to Redis");
+    }
+}
+
+auth_service::~auth_service() {
+    if (ctx) redisFree(ctx);
+}
+
 void auth_service::register_user(const std::string& username, const std::string& password) {
+    // TODO: add salt
     auto hashed_password = sha256(password);
     user_repo.add(user{username, hashed_password});
 }
@@ -31,11 +43,25 @@ std::expected<std::string, std::string> auth_service::login_user(const std::stri
         return std::unexpected("invalid username or password");
     }
 
-    auto uuid = random_uuid();
-    tokens.insert(uuid);
-    return uuid;
+    auto token = random_uuid();
+    int ttl_seconds = 3600;
+
+    redisReply* reply = (redisReply*)redisCommand(ctx,
+        "SETEX session:%s %d %s", token.c_str(), ttl_seconds, username.c_str());
+    if (!reply) throw std::runtime_error("Redis command failed");
+    freeReplyObject(reply);
+
+    return token;
 }
 
 bool auth_service::auth(const std::string& token) {
-    return tokens.contains(token);
+    redisReply* reply = (redisReply*)redisCommand(ctx, "GET session:%s", token.c_str());
+    if (!reply) return false;
+
+    bool ok = false;
+    if (reply->type == REDIS_REPLY_STRING) {
+        ok = true; // token exists & not expired
+    }
+    freeReplyObject(reply);
+    return ok;
 }
