@@ -110,9 +110,17 @@ int main() {
         std::string language = payload.at("language").get<std::string>();
         std::string code = payload.at("code").get<std::string>();
 
+        language lang_enum;
+        if (language == "cpp")
+            lang_enum = language::CPP;
+        else if (language == "python3" || language == "python")
+            lang_enum = language::PY;
+        else
+            return response{400, "application/json", "{\"error\":\"Unsupported language\"}"};
+
         std::string task_id =
             task_repo.add_submission(task_submission{
-                language::CPP,
+                lang_enum, 
                 task_status::IN_PROGRESS,
                 code,
                 std::chrono::system_clock::now()
