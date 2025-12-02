@@ -10,6 +10,9 @@
 #include <charconv>
 #include <optional>
 
+#include <rabbitmq-c/amqp.h>
+#include <rabbitmq-c/tcp_socket.h>
+
 #include "core/types.hpp"
 
 #include "infra/types.hpp"
@@ -21,15 +24,52 @@
 #include "services/auth_service.hpp"
 
 #include "lib/env.hpp"
+#include "helpers/rabbitmq.hpp"
 
 using asio::ip::tcp;
-
 
 int main() {
     int port = get_port("PORT").value_or(8081);
 
-    task_repository task_repo;
-    auth_service auth_s;
+    // RabbitMQ connection
+    amqp_connection_state_t conn = amqp_new_connection();
+    amqp_socket_t* socket = amqp_tcp_socket_new(conn);
+
+    std::string rabbit_vhost = get_env("RABBITMQ_VHOST").value_or("/");
+    std::string rabbit_host  = get_env("RABBITMQ_HOST").value_or("localhost");
+
+    int rabbit_port = get_port("RABBITMQ_PORT").value_or(5672);
+
+    if (!socket) {
+        throw std::runtime_error("Failed to create RabbitMQ TCP socket");
+    }
+    if (amqp_socket_open(socket, rabbit_host.c_str(), rabbit_port)) {
+        throw std::runtime_error("Failed to open RabbitMQ TCP socket");
+    }
+
+    // login (using env user/pass or default)
+    std::string rabbit_user = get_env("RABBITMQ_USER").value_or("guest");
+    std::string rabbit_pass = get_env("RABBITMQ_PASS").value_or("guest");
+
+    die_on_amqp_error(amqp_login(conn, rabbit_vhost.c_str(), 0, 131072, 0, AMQP_SASL_METHOD_PLAIN,
+                                 rabbit_user.c_str(), rabbit_pass.c_str()),
+                      "Logging in");
+    
+    amqp_channel_open(conn, 1);
+    amqp_get_rpc_reply(conn);
+
+    // declare a queue "tasks"
+    amqp_queue_declare(conn, 1, amqp_cstring_bytes("tasks"),
+                       0, 0, 0, 1, amqp_empty_table);
+    amqp_get_rpc_reply(conn);
+
+    std::string redis_host = get_env("REDIS_HOST").value_or("redis");
+    int redis_port = get_port("REDIS_PORT").value_or(6379);
+
+    pqxx::connection pg_conn(get_pg_conninfo());
+    task_repository task_repo(pg_conn);
+    auth_service auth_s(pg_conn, redis_host, redis_port);
+
     request_parser rp;
     dispatcher disp(auth_s);
 
@@ -54,7 +94,6 @@ int main() {
         }
     }, true);
 
-
     disp.add_route(request_type::POST, "/login", [&](const request& req, const std::unordered_map<std::string, std::string>&) {
         nlohmann::json payload = nlohmann::json::parse(req.body);
 
@@ -69,23 +108,107 @@ int main() {
         return response { 200, "application/json", "{ \"token\": \"" + *token + "\" }"  };
     }, true);
 
-    disp.add_route(request_type::POST, "/task", [&](const request& r, const std::unordered_map<std::string, std::string>&) {
-        std::string task_id = task_repo.add(task{language::CPP, task_status::IN_PROGRESS, ""});
-        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
-        task_repo.change_status(task_id, task_status::READY);
+    disp.add_route(request_type::POST, "/task", [&](const request& req, const std::unordered_map<std::string, std::string>&) {
+        if (req.body.empty()) {
+            return response{400, "application/json", R"({"error":"empty body"})"};
+        }
+
+        nlohmann::json payload;
+        try {
+            payload = nlohmann::json::parse(req.body);
+        } catch (const std::exception& e) {
+            return response{400, "application/json",
+                                std::string(R"({"error":"invalid json: )") + e.what() + "\"}"};
+        }
+
+        std::string lang = payload.at("language").get<std::string>();
+        std::string code = payload.at("code").get<std::string>();
+
+        language lang_enum;
+        if (lang == "cpp")
+            lang_enum = language::CPP;
+        else if (lang == "python3" || lang == "python")
+            lang_enum = language::PY;
+        else
+            return response{400, "application/json", "{\"error\":\"Unsupported language\"}"};
+
+        std::string task_id =
+            task_repo.add_submission(task_submission{
+                lang_enum, 
+                task_status::IN_PROGRESS,
+                code,
+                std::chrono::system_clock::now()
+            });
+
+        nlohmann::json msg_json = {
+            {"task_id", task_id},
+            {"language", lang},
+            {"code", code}
+        };
+        std::string msg = msg_json.dump();
+
+        amqp_basic_publish(conn,
+            1,                                   // channel
+            amqp_cstring_bytes(""),              // exchange (default)
+            amqp_cstring_bytes("tasks"),         // routing key = queue
+            0, 0,                                // mandatory, immediate
+            NULL,                                // properties
+            amqp_cstring_bytes(msg.c_str()));
 
         return response { 201, "application/json", "{ \"task_id\": \"" + task_id + "\" }"  };
     });
+    
+    disp.add_route(request_type::POST, "/commit", [&](const request& req, const std::unordered_map<std::string, std::string>&) {
+        try {
+            nlohmann::json payload = nlohmann::json::parse(req.body);
+
+            std::string task_id   = payload.at("task_id").get<std::string>();
+            std::string stdout_r  = payload.at("stdout").get<std::string>();
+            std::string stderr_r  = payload.at("stderr").get<std::string>();
+            int exit_code         = payload.at("exit_code").get<int>();
+
+            task_result result {
+                task_id,
+                stdout_r,
+                stderr_r,
+                std::to_string(exit_code),
+                std::chrono::system_clock::now()
+            };
+
+            task_repo.save_result(result);
+            task_repo.change_submission_status(task_id, task_status::READY);
+
+            return response{201, "application/json", R"({"status":"committed"})"};
+        } catch (std::exception& e) {
+            return response{400, "application/json",
+                std::string("{\"error\":\"bad request: ") + e.what() + "\"}"};
+        }
+    }, true);
+
 
     disp.add_route(request_type::GET, "/status/{task_id}", [&](const request&, const std::unordered_map<std::string, std::string>& params) {
         auto it = params.find("task_id");
         if (it == params.end())
             return response {404, "text/plain", "Invalid request: couldn't read task_id" };
         auto task_id = it->second;
-        if (!task_repo.contains(task_id))
-            return response {404, "text/plain", "Not found: task wih id " + task_id + " does not exist" };
 
-        return response { 200, "application/json", "{ \"status\": \"ready\" }" };
+        auto sub = task_repo.get_submission(task_id);
+        if (!sub) {
+            return response {404, "text/plain", "Not found: task with id " + task_id + " does not exist" };
+        }
+
+        std::string status_str;
+        switch (sub->status) {
+            case task_status::IN_PROGRESS: status_str = "in_progress"; break;
+            case task_status::QUEUED:      status_str = "queued"; break;
+            case task_status::READY:       status_str = "ready"; break;
+        }
+
+        nlohmann::json body = {
+            {"task_id", task_id},
+            {"status", status_str}
+        };
+        return response {200, "application/json", body.dump()};
     });
 
     disp.add_route(request_type::GET, "/result/{task_id}", [&](const request&, const std::unordered_map<std::string, std::string>& params) {
@@ -93,10 +216,19 @@ int main() {
         if (it == params.end())
             return response {400, "text/plain", "Bad request: couldn't read task_id" };
         auto task_id = it->second;
-        if (!task_repo.contains(task_id))
-            return response {404, "text/plain", "Not found: task wih id " + task_id + " does not exist" };
 
-        return response { 200, "application/json", "{ \"result\" : \"\" }" };
+        auto result = task_repo.get_result(task_id);
+        if (!result) {
+            return response {404, "text/plain", "Not found: result for task id " + task_id + " does not exist" };
+        }
+
+        nlohmann::json body = {
+            {"task_id", result->submission_id},
+            {"stdout", result->stdout_result},
+            {"stderr", result->stderr_result},
+            {"exit_code", result->exit_code}
+        };
+        return response {200, "application/json", body.dump()};
     });
 
     try {
@@ -134,4 +266,8 @@ int main() {
     } catch (std::exception& e) {
         std::cerr << "Exception: " << e.what() << "\n";
     }
+
+    amqp_channel_close(conn, 1, AMQP_REPLY_SUCCESS);
+    amqp_connection_close(conn, AMQP_REPLY_SUCCESS);
+    amqp_destroy_connection(conn);
 }

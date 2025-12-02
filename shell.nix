@@ -13,10 +13,10 @@ pkgs.mkShell {
     nodejs_22
     openssl
     nlohmann_json
+    rabbitmq-c
 
     docker
     python313
-    python313Packages.pytest
     python313Packages.pytest
     python313Packages.requests
   ];

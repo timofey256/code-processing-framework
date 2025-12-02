@@ -19,3 +19,13 @@ std::optional<int> get_port(const char* env_name) {
     return std::nullopt; // invalid number or out of range
 }
 
+std::string get_pg_conninfo() {
+    std::string conninfo;
+    if (auto h = get_env("PGHOST"))     conninfo += "host=" + *h + " ";
+    if (auto p = get_env("PGPORT"))     conninfo += "port=" + *p + " ";
+    if (auto d = get_env("PGDATABASE")) conninfo += "dbname=" + *d + " ";
+    if (auto u = get_env("PGUSER"))     conninfo += "user=" + *u + " ";
+    if (auto pw = get_env("PGPASSWORD"))conninfo += "password=" + *pw + " ";
+    return conninfo;
+}
+
