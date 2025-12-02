@@ -63,9 +63,13 @@ int main() {
                        0, 0, 0, 1, amqp_empty_table);
     amqp_get_rpc_reply(conn);
 
+    std::string redis_host = get_env("REDIS_HOST").value_or("redis");
+    int redis_port = get_port("REDIS_PORT").value_or(6379);
 
-    task_repository task_repo;
-    auth_service auth_s;
+    pqxx::connection pg_conn(get_pg_conninfo());
+    task_repository task_repo(pg_conn);
+    auth_service auth_s(pg_conn, redis_host, redis_port);
+
     request_parser rp;
     dispatcher disp(auth_s);
 
@@ -105,7 +109,17 @@ int main() {
     }, true);
 
     disp.add_route(request_type::POST, "/task", [&](const request& req, const std::unordered_map<std::string, std::string>&) {
-        nlohmann::json payload = nlohmann::json::parse(req.body);
+        if (req.body.empty()) {
+            return response{400, "application/json", R"({"error":"empty body"})"};
+        }
+
+        nlohmann::json payload;
+        try {
+            payload = nlohmann::json::parse(req.body);
+        } catch (const std::exception& e) {
+            return response{400, "application/json",
+                                std::string(R"({"error":"invalid json: )") + e.what() + "\"}"};
+        }
 
         std::string lang = payload.at("language").get<std::string>();
         std::string code = payload.at("code").get<std::string>();

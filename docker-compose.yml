@@ -23,6 +23,10 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
     ports:
       - "8081:8081"
     environment:
@@ -31,6 +35,13 @@ services:
       - RABBITMQ_USER=myuser
       - RABBITMQ_PASS=mypass
       - RABBITMQ_VHOST=myvhost
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - PGHOST=postgres
+      - PGPORT=5432
+      - PGDATABASE=mydb
+      - PGUSER=myuser
+      - PGPASSWORD=mypass
 
   processor:
     build:
@@ -49,6 +60,11 @@ services:
       - RABBITMQ_USER=myuser
       - RABBITMQ_PASS=mypass
       - RABBITMQ_VHOST=myvhost
+      - PGHOST=postgres
+      - PGPORT=5432
+      - PGDATABASE=mydb
+      - PGUSER=myuser
+      - PGPASSWORD=mypass
 
   runner:
     build: 
@@ -56,3 +72,25 @@ services:
       dockerfile: Dockerfile.runner
     container_name: runner
     image: runner:latest
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=mydb
+      - POSTGRES_USER=myuser
+      - POSTGRES_PASSWORD=mypass
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/migrations/001_init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U myuser -d mydb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

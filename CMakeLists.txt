@@ -10,6 +10,9 @@ find_package(OpenSSL REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 find_package(Boost REQUIRED)  
 find_library(RABBITMQ_LIB NAMES rabbitmq)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(HIREDIS REQUIRED hiredis)
+pkg_check_modules(LIBPQXX REQUIRED libpqxx)
 
 find_path(ASIO_INCLUDE_DIR asio.hpp)
 
@@ -41,21 +44,23 @@ add_executable(server
     app/server.cpp
 )
 
+target_include_directories(server PRIVATE ${HIREDIS_INCLUDE_DIRS})
+
 target_link_libraries(server PRIVATE
     core infra services lib helpers
     OpenSSL::Crypto nlohmann_json::nlohmann_json
-    ${RABBITMQ_LIB}
+    ${RABBITMQ_LIB} ${HIREDIS_LIBRARIES} ${LIBPQXX_LIBRARIES}
 )
 
 add_executable(processor
     app/processor.cpp
 )
 
-target_include_directories(processor PRIVATE ${Boost_INCLUDE_DIRS})
+target_include_directories(processor PRIVATE ${Boost_INCLUDE_DIRS} ${HIREDIS_INCLUDE_DIRS})
 
 target_link_libraries(processor
     PRIVATE core infra services helpers lib
-            nlohmann_json::nlohmann_json
-            ${RABBITMQ_LIB}
+    nlohmann_json::nlohmann_json
+    ${RABBITMQ_LIB} ${HIREDIS_LIBRARIES} ${LIBPQXX_LIBRARIES}
 )
 
