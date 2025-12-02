@@ -1,6 +1,6 @@
-#include "core/request_parser.hpp"
+#include "infra/request_parser.hpp"
 
-request request_parser::parse(std::istream& serialized) {
+std::expected<request, std::string> request_parser::parse(std::istream& serialized) {
     request r;
 
     // parse request line
@@ -13,14 +13,14 @@ request request_parser::parse(std::istream& serialized) {
     std::string method, path, version;
     line_stream >> method >> path >> version;
 
-    if (method == "GET") r.type = GET;
-    else if (method == "POST") r.type = POST;
-    else if (method == "PUT") r.type = PUT;
-    else if (method == "DELETE") r.type = DELETE_;
-    else if (method == "HEAD") r.type = HEAD;
-    else if (method == "OPTIONS") r.type = OPTIONS;
-    else if (method == "PATCH") r.type = PATCH;
-    else throw std::runtime_error("Unsupported HTTP method: " + method);
+    if (method == "GET")          r.type = request_type::GET;
+    else if (method == "POST")    r.type = request_type::POST;
+    else if (method == "PUT")     r.type = request_type::PUT;
+    else if (method == "DELETE")  r.type = request_type::DELETE_;
+    else if (method == "HEAD")    r.type = request_type::HEAD;
+    else if (method == "OPTIONS") r.type = request_type::OPTIONS;
+    else if (method == "PATCH")   r.type = request_type::PATCH;
+    else return std::unexpected("Unsupported HTTP method: " + method);
 
     r.target = path;
 
@@ -44,7 +44,13 @@ request request_parser::parse(std::istream& serialized) {
     // parse body
     auto it = r.headers.find("Content-Length");
     if (it != r.headers.end()) {
-        int length = std::stoi(it->second);
+        int length = 0;
+        auto [ptr, ec] = std::from_chars(it->second.data(), it->second.data() + it->second.size(), length);
+
+        if (ec != std::errc() || length < 0) {
+            return std::unexpected("Invalid Content-Length header");
+        }
+
         r.body.resize(length);
         serialized.read(&r.body[0], length);
     }

@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build images
+        run: |
+          docker compose -f docker-compose.yml build
+
+      - name: Start stack
+        run: |
+          docker compose -f docker-compose.yml up -d
+          docker compose ps
+
+      - name: Wait for server
+        run: |
+          for i in {1..20}; do
+            if curl -s http://127.0.0.1:8081/ >/dev/null; then
+              echo "Server is up!"
+              break
+            fi
+            echo "Waiting for server..."
+            sleep 3
+          done
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        run: |
+          pip install pytest requests
+
+      - name: Run tests
+        run: |
+          pytest -v tests
+
+      - name: Debug logs
+        if: failure()
+        run: docker compose -f docker-compose.yml logs
+
+      - name: Tear down
+        if: always()
+        run: |
+          docker compose -f docker-compose.yml down -v

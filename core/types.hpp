@@ -1,54 +1,41 @@
 #pragma once
 
 #include <string>
+#include <chrono>
 
-enum request_type {
-    GET,
-    POST,
-    PUT,
-    DELETE_,
-    HEAD,
-    OPTIONS,
-    PATCH
-};
-
-struct request {
-    request_type type;
-    std::string target;
-    std::unordered_map<std::string, std::string> headers;
-    std::string body;
-};
-
-struct response {
-    int status;
-    std::string content_type;
-    std::string body;
-
-    std::string to_string() const {
-        std::ostringstream oss;
-        oss << "HTTP/1.1 " << status << " "
-            << (status == 200 ? "OK" : "Error") << "\r\n"
-            << "Content-Type: " << content_type << "\r\n"
-            << "Content-Length: " << body.size() << "\r\n"
-            << "\r\n"
-            << body;
-        return oss.str();
-    }
-};
-
-enum language {
+enum class language {
     CPP,
     PY
 };
 
-enum task_status {
+enum class task_status {
     IN_PROGRESS,
     QUEUED,
     READY
 };
 
-struct task {
+struct task_submission {
     language lang;
     task_status status;
     std::string code;
+    std::chrono::system_clock::time_point created_at;
+};
+
+struct task_result {
+    std::string submission_id;
+
+    std::string stdout_result;
+    std::string stderr_result;
+    std::string exit_code;
+
+    std::chrono::system_clock::time_point completed_at;
+};
+
+struct user {
+    std::string username;
+    std::string password;
+
+    bool operator==(const user& other) const {
+        return username == other.username && password == other.password;
+    }
 };

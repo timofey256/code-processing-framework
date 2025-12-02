@@ -1,8 +1,7 @@
-#include "core/dispatcher.hpp"
+#include "infra/dispatcher.hpp"
 
 static std::regex pattern_to_regex(const std::string& pattern) {
     std::string regex_str;
-    std::vector<std::string> keys;
     std::stringstream ss(pattern);
     std::string segment;
 
@@ -38,8 +37,8 @@ static std::vector<std::string> extract_keys(const std::string& pattern) {
     return keys;
 }
 
-void dispatcher::add_route(request_type method, const std::string& pattern, handler_t handler) {
-    routes_.push_back({method, pattern_to_regex(pattern), extract_keys(pattern), std::move(handler)});
+void dispatcher::add_route(request_type method, const std::string& pattern, handler_t handler, bool skip_auth) {
+    routes_.push_back({method, pattern_to_regex(pattern), extract_keys(pattern), std::move(handler), skip_auth});
 }
 
 response dispatcher::dispatch(const request& req) const {
@@ -52,9 +51,26 @@ response dispatcher::dispatch(const request& req) const {
             for (size_t i = 0; i < route.keys.size(); ++i) {
                 params[route.keys[i]] = match[i + 1];
             }
+
+            if (!route.skip_auth) {
+                auto it = req.headers.find("Authorization");
+                if (it == req.headers.end())
+                    return {401, "text/plain", "Missing Authorization header"};
+
+                const std::string& auth_header = it->second;
+                std::string prefix = "Bearer ";
+                if (auth_header.rfind(prefix, 0) != 0) {
+                    return {401, "text/plain", "Invalid Authorization header"};
+                }
+
+                std::string token = auth_header.substr(prefix.size());
+                if (!auth.auth(token)) {
+                    return {403, "text/plain", "Invalid or expired token"};
+                }
+            }
+
             return route.handler(req, params);
         }
     }
     return {404, "text/plain", "Not Found"};
 }
-
